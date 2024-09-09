@@ -22,7 +22,7 @@ authority_url = f"https://login.microsoftonline.com/{tenant_id}"
 redirect_uri = st.secrets["URL"]
  
 # Define the scopes required for accessing SharePoint
-scopes=["Files.ReadWrite.All", "Sites.Read.All", "User.Read"]
+# scopes=["Files.ReadWrite.All", "Sites.Read.All", "User.Read"]
  
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
@@ -37,12 +37,12 @@ st.title("📂 SharePoint File Downloader and Query Chatbot")
 # Authentication flow
 def get_auth_url():
     auth_url = app.get_authorization_request_url(
-        scopes=scopes, redirect_uri=redirect_uri)
+        scopes=["Files.ReadWrite.All", "Sites.Read.All", "User.Read"], redirect_uri=redirect_uri)
     return auth_url
  
 def get_token_from_code(auth_code):
     result = app.acquire_token_by_authorization_code(
-        auth_code, scopes=scopes, redirect_uri=redirect_uri)
+        auth_code, scopes=["Files.ReadWrite.All", "Sites.Read.All", "User.Read"], redirect_uri=redirect_uri)
     return result
  
 # Cache the authentication headers
