@@ -1,0 +1,8 @@
+streamlit
+msal
+requests
+docx
+PyPDF2
+pandas
+scikit-learn
+streamlit-pagination
