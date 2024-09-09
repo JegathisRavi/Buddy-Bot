@@ -1,7 +1,7 @@
 streamlit
 msal
 requests
-docx
+python-docx
 PyPDF2
 pandas
 scikit-learn
