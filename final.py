@@ -58,8 +58,8 @@ def get_token_from_code(auth_code):
  
 # Cache the authentication headers
 @st.cache_resource
-def get_auth_headers(auth_code=None):
-    auth_code = st.experimental_get_query_params().get("code")
+def get_auth_headers(auth_code):
+   
     if auth_code:
         token_response = get_token_from_code(auth_code)
         if 'access_token' in token_response:
@@ -280,7 +280,9 @@ if 'auth_code' not in st.session_state:
         st.query_params["auth_url"] = auth_url
         st.rerun()
 else:
-    headers = get_auth_headers(st.session_state['auth_code'])
+    auth_code = st.experimental_get_query_params().get("code")
+   # headers = get_auth_headers(st.session_state['auth_code'])
+    headers = get_auth_headers(auth_code)
     if headers:
         if 'messages' not in st.session_state:
             st.session_state.messages = []
