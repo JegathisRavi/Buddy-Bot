@@ -26,7 +26,7 @@ scopes = ['Files.ReadWrite.All', 'Sites.Read.All','User.Read']
  
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
-    client_id,
+    client_id, 
     authority=authority_url,
     client_credential=client_secret
 )
@@ -269,18 +269,32 @@ def display_chat_history():
             """, unsafe_allow_html=True)
             # Main conversation flow starts here...
 if 'auth_code' not in st.session_state:
+    # Display an authenticate button to initiate login
     if st.button("Authenticate to use the app"):
+        # Get the authentication URL
         auth_url = get_auth_url()
-        st.query_params["auth_url"] = auth_url
-        st.rerun()
+        
+        # Use st.session_state to store the auth_url instead of st.query_params
+        st.session_state.auth_url = auth_url
+        
+        # Redirect to the authentication page using meta refresh
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0; url={st.session_state.auth_url}">',
+            unsafe_allow_html=True,
+        )
 else:
+    # The user has already authenticated, now we get the token
     headers = get_auth_headers(st.session_state['auth_code'])
     if headers:
+        # Initialize the session state for other items if not already done
         if 'messages' not in st.session_state:
             st.session_state.messages = []
             st.session_state.items_dict = {}
             st.session_state.search_results_dict = {}
             st.session_state.file_contents = {}
+
+        st.success("You are authenticated! Now you can interact with the app.")
+
  
         # Display chat history
         display_chat_history()
@@ -527,20 +541,28 @@ else:
                     else:
                         add_message(
                             "assistant", "I'm sorry, I couldn't retrieve the file information. Please try again.")
- 
+    else:
+        st.error("Authentication failed. Please try again.")
+        # Reset session state in case of failure
+        del st.session_state['auth_code']
+
         # Add a button to clear the conversation
-        if st.button("Clear Conversation"):
-            st.session_state.messages = []
-            st.rerun()
+    if st.button("Clear Conversation"):
+        st.session_state.messages = []
+        st.rerun()
  
 # To handle the redirection and capture the auth code
-if 'auth_code' not in st.session_state and 'code' in st.query_params:
-    st.session_state.auth_code = st.query_params['code']
-    st.rerun()
+query_params = st.experimental_get_query_params()
+auth_code = query_params.get("code", [None])[0]
+
+# If there's an authorization code in the URL, set it in session state
+if auth_code and 'auth_code' not in st.session_state:
+    st.session_state['auth_code'] = auth_code
+    st.experimental_rerun()  # Re-run the app with the auth code stored
  
-# Redirect to authentication URL
-if 'auth_url' in st.query_params:
-    st.markdown(
-        f'<meta http-equiv="refresh" content="0; url={st.query_params["auth_url"]}">', unsafe_allow_html=True)
+# # Redirect to authentication URL
+# if 'auth_url' in st.query_params:
+#     st.markdown(
+#         f'<meta http-equiv="refresh" content="0; url={st.query_params["auth_url"]}">', unsafe_allow_html=True)
 
  
