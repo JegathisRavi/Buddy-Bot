@@ -59,6 +59,7 @@ def get_token_from_code(auth_code):
 # Cache the authentication headers
 @st.cache_resource
 def get_auth_headers(auth_code=None):
+    auth_code = st.experimental_get_query_params().get("code")
     if auth_code:
         token_response = get_token_from_code(auth_code)
         if 'access_token' in token_response:
