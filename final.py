@@ -51,7 +51,13 @@ def get_auth_headers(auth_code=None):
     if auth_code:
         token_response = get_token_from_code(auth_code)
         if 'access_token' in token_response:
-            return {'Authorization': f'Bearer {token_response["access_token"]}'}
+            headers = {
+                'Authorization': f'Bearer {token_response["access_token"]}',
+                'Access-Control-Allow-Origin': '*',  # Allow from all origins
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            }
+            return headers
     return None
  
 # Add this to initialize folder path in session state
