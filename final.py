@@ -13,64 +13,41 @@ from sklearn.metrics.pairwise import cosine_similarity
 from datetime import datetime, timedelta
 import streamlit_pagination as stp
 import zipfile
-
+ 
 # Azure AD app details
 client_id = st.secrets["CLIENT_ID"]
 client_secret = st.secrets["CLIENT_SECRET"]
 tenant_id = st.secrets["TENANT_ID"]
-authority = f"https://login.microsoftonline.com/{tenant_id}"
+authority_url = f"https://login.microsoftonline.com/{tenant_id}"
 redirect_uri = st.secrets["URL"]
-
+ 
 # Define the scopes required for accessing SharePoint
-scopes = ["Files.ReadWrite.All", "Sites.Read.All", "User.Read"]
-
+scopes = ['Files.ReadWrite.All', 'Sites.Read.All','User.Read']
+ 
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
     client_id,
-    authority=authority,
-    client_credential=client_secret,
+    authority=authority_url,
+    client_credential=client_secret
 )
-
+ 
 # Streamlit UI
 st.title("📂 SharePoint File Downloader and Query Chatbot")
-
+ 
 # Authentication flow
 def get_auth_url():
     auth_url = app.get_authorization_request_url(
-        scopes=scopes, redirect_uri=redirect_uri)
+        scopes, redirect_uri=redirect_uri)
     return auth_url
-
+ 
 def get_token_from_code(auth_code):
     result = app.acquire_token_by_authorization_code(
         auth_code, scopes=scopes, redirect_uri=redirect_uri)
     return result
-
-# Handling the callback
-auth_code = st.experimental_get_query_params().get("code")
-if auth_code:
-    token_response = get_token_from_code(auth_code[0])  # Use [0] to get the first element
-    if "access_token" in token_response:
-        st.write("Authentication successful!")
-        st.session_state["access_token"] = token_response["access_token"]
-        # Use the token to access resources
-        user_info = requests.get(
-            "https://graph.microsoft.com/v1.0/me",
-            headers={"Authorization": f"Bearer {st.session_state['access_token']}"}
-        ).json()
-        st.write("User Info:", user_info)
-    else:
-        st.write("Authentication failed.")
-        st.write("Error details:", token_response.get("error_description", "Unknown error"))
-else:
-    st.write("Not authenticated.")
-    # Generate the authorization URL
-    auth_url = get_auth_url()
-    st.write(f"[Login]({auth_url})")
  
 # Cache the authentication headers
 @st.cache_resource
-def get_auth_headers(auth_code):
-   
+def get_auth_headers(auth_code=None):
     if auth_code:
         token_response = get_token_from_code(auth_code)
         if 'access_token' in token_response:
@@ -291,9 +268,7 @@ if 'auth_code' not in st.session_state:
         st.query_params["auth_url"] = auth_url
         st.rerun()
 else:
-    auth_code = st.experimental_get_query_params().get("code")
-   # headers = get_auth_headers(st.session_state['auth_code'])
-    headers = get_auth_headers(auth_code)
+    headers = get_auth_headers(st.session_state['auth_code'])
     if headers:
         if 'messages' not in st.session_state:
             st.session_state.messages = []
@@ -561,3 +536,5 @@ if 'auth_code' not in st.session_state and 'code' in st.query_params:
 if 'auth_url' in st.query_params:
     st.markdown(
         f'<meta http-equiv="refresh" content="0; url={st.query_params["auth_url"]}">', unsafe_allow_html=True)
+
+ 
