@@ -43,6 +43,17 @@ def get_auth_url():
 def get_token_from_code(auth_code):
     result = app.acquire_token_by_authorization_code(
         auth_code, scopes=["Files.ReadWrite.All", "Sites.Read.All", "User.Read"], redirect_uri=redirect_uri)
+    if "access_token" in token_response:
+        st.write("Authentication successful!")
+        st.session_state["access_token"] = token_response["access_token"]
+        # Use the token to access resources
+        user_info = requests.get(
+            "https://graph.microsoft.com/v1.0/me",
+            headers={"Authorization": f"Bearer {st.session_state['access_token']}"}
+        ).json()
+        st.write("User Info:", user_info)
+    else:
+        st.write("Authentication failed.")
     return result
  
 # Cache the authentication headers
