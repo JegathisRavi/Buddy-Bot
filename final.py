@@ -27,7 +27,7 @@ scopes=["Files.ReadWrite.All", "Sites.Read.All", "User.Read"]
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
     client_id,
-    authority=authority,
+    authority=authority_url,
     client_credential=client_secret,
 )
  
