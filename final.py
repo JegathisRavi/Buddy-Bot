@@ -20,32 +20,31 @@ client_secret = st.secrets["CLIENT_SECRET"]
 tenant_id = st.secrets["TENANT_ID"]
 authority_url = f"https://login.microsoftonline.com/{tenant_id}"
 redirect_uri = st.secrets["URL"]
- 
 # Define the scopes required for accessing SharePoint
-scopes = ['Files.ReadWrite.All', 'Sites.Read.All','User.Read']
+scopes = ['Files.ReadWrite.All', 'Sites.Read.All']
  
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
-    client_id, 
+    client_id,
     authority=authority_url,
-    client_credential=client_secret
+    client_credential=client_secret,
 )
- 
-# Streamlit UI
-st.title("📂 SharePoint File Downloader and Query Chatbot")
- 
-# Authentication flow
+
+# Function to generate the authentication URL
 def get_auth_url():
     auth_url = app.get_authorization_request_url(
-        scopes, redirect_uri=redirect_uri)
+        scopes=scopes, redirect_uri=redirect_uri
+    )
     return auth_url
- 
+
+# Function to get the token using authorization code
 def get_token_from_code(auth_code):
     result = app.acquire_token_by_authorization_code(
-        auth_code, scopes=scopes, redirect_uri=redirect_uri)
+        auth_code, scopes=scopes, redirect_uri=redirect_uri
+    )
     return result
- 
-# Cache the authentication headers
+
+# Cache the auth headers
 @st.cache_resource
 def get_auth_headers(auth_code=None):
     if auth_code:
@@ -274,14 +273,11 @@ if 'auth_code' not in st.session_state:
         # Get the authentication URL
         auth_url = get_auth_url()
         
-        # Use st.session_state to store the auth_url instead of st.query_params
+        # Use st.session_state to store the auth_url
         st.session_state.auth_url = auth_url
         
-        # Redirect to the authentication page using meta refresh
-        st.markdown(
-            f'<meta http-equiv="refresh" content="0; url={st.session_state.auth_url}">',
-            unsafe_allow_html=True,
-        )
+        # Provide a clickable link that opens in a new tab
+        st.markdown(f'[Click here to authenticate with Microsoft]({auth_url})', unsafe_allow_html=True)
 else:
     # The user has already authenticated, now we get the token
     headers = get_auth_headers(st.session_state['auth_code'])
@@ -295,7 +291,7 @@ else:
 
         st.success("You are authenticated! Now you can interact with the app.")
 
- 
+
         # Display chat history
         display_chat_history()
  
@@ -551,14 +547,14 @@ else:
         st.session_state.messages = []
         st.rerun()
  
-# To handle the redirection and capture the auth code
-query_params = st.experimental_get_query_params()
+# Extract authorization code from URL query params
+query_params = st.query_params  # Use st.query_params to access the query params
 auth_code = query_params.get("code", [None])[0]
 
 # If there's an authorization code in the URL, set it in session state
 if auth_code and 'auth_code' not in st.session_state:
     st.session_state['auth_code'] = auth_code
-    st.experimental_rerun()  # Re-run the app with the auth code stored
+    st.experimental_rerun()
  
 # # Redirect to authentication URL
 # if 'auth_url' in st.query_params:
