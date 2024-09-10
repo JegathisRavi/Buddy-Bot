@@ -15,48 +15,52 @@ import streamlit_pagination as stp
 import zipfile
  
 # Azure AD app details
-client_id = st.secrets["CLIENT_ID"]
-client_secret = st.secrets["CLIENT_SECRET"]
-tenant_id = st.secrets["TENANT_ID"]
+client_id = st.secrets["azure_ad"]["CLIENT_ID"]
+client_secret = st.secrets["azure_ad"]["CLIENT_SECRET"]
+tenant_id = st.secrets["azure_ad"]["TENANT_ID"]
 authority_url = f"https://login.microsoftonline.com/{tenant_id}"
 redirect_uri = st.secrets["URL"]
+ 
 # Define the scopes required for accessing SharePoint
-scopes = ['Files.ReadWrite.All', 'Sites.Read.All']
+scopes = ["Files.ReadWrite.All", "Sites.Read.All", "User.Read"]
  
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
     client_id,
     authority=authority_url,
-    client_credential=client_secret,
+    client_credential=client_secret
 )
-
-# Function to generate the authentication URL
+ 
+# Streamlit UI
+st.title("📂 SharePoint File Downloader and Query Chatbot")
+ 
+# Authentication flow
 def get_auth_url():
     auth_url = app.get_authorization_request_url(
-        scopes=scopes, redirect_uri=redirect_uri
+        scopes, 
+        redirect_uri=redirect_uri,
+        state=st.session_state.get("state", "")  # Add a state parameter
     )
+    st.write(f"Debug: Auth URL is {auth_url}")  # Debug logging
     return auth_url
 
-# Function to get the token using authorization code
 def get_token_from_code(auth_code):
     result = app.acquire_token_by_authorization_code(
-        auth_code, scopes=scopes, redirect_uri=redirect_uri
+        auth_code, 
+        scopes=scopes, 
+        redirect_uri=redirect_uri
     )
+    if "error" in result:
+        st.error(f"Error in token acquisition: {result.get('error_description', 'Unknown error')}")
     return result
-
-# Cache the auth headers
+ 
+# Cache the authentication headers
 @st.cache_resource
 def get_auth_headers(auth_code=None):
     if auth_code:
         token_response = get_token_from_code(auth_code)
         if 'access_token' in token_response:
-            headers = {
-                'Authorization': f'Bearer {token_response["access_token"]}',
-                'Access-Control-Allow-Origin': '*',  # Allow from all origins
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-            }
-            return headers
+            return {'Authorization': f'Bearer {token_response["access_token"]}'}
     return None
  
 # Add this to initialize folder path in session state
@@ -190,30 +194,7 @@ def search_answer(question, file_contents):
         answer = "I'm sorry, but I couldn't find any relevant information to answer your question."
  
     return answer
- 
-# Function to download all files in a folder and create a zip archive
-def download_folder_as_zip(site_id, folder_path, headers):
-    folder_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}:/children"
-    response = requests.get(folder_url, headers=headers)
-    if response.status_code == 200:
-        items = response.json().get('value', [])
-        folder_name = folder_path.split("/")[-1]
-        zip_filename = f"{folder_name}.zip"
- 
-        with io.BytesIO() as zip_buffer:
-            with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
-                for item in items:
-                    if 'file' in item:  # Only include files, not subfolders
-                        file_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item['id']}/content"
-                        file_response = requests.get(file_url, headers=headers)
-                        if file_response.status_code == 200:
-                            zip_file.writestr(
-                                item['name'], file_response.content)
-            zip_buffer.seek(0)
-            return zip_buffer.read(), zip_filename
-    return None, None
- 
-# New function to list accessible sites
+
 def list_accessible_sites(headers):
     sites_url = "https://graph.microsoft.com/v1.0/sites?search=*"
     response = requests.get(sites_url, headers=headers)
@@ -228,70 +209,22 @@ def add_message(role, content):
     st.session_state.messages.append({"role": role, "content": content, "timestamp": timestamp})
     with st.chat_message(role):
         st.markdown(content)
- 
-# Updated function to display chat history
-def display_chat_history():
-    st.sidebar.title("Chat History")
-    st.sidebar.markdown("""
-    <style>
-    .chat-message {
-        padding: 10px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        font-size: 14px;
-    }
-    .user-message {
-        background-color: #e6f3ff;
-        border-left: 5px solid #2196F3;
-    }
-    .assistant-message {
-        background-color: #f0f0f0;
-        border-left: 5px solid #4CAF50;
-    }
-    .timestamp {
-        font-size: 10px;
-        color: #888;
-        margin-top: 5px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
- 
-    current_time = datetime.now()
-    for msg in reversed(st.session_state.messages):
-        if current_time - msg["timestamp"] < timedelta(hours=24):
-            message_class = "user-message" if msg['role'] == "user" else "assistant-message"
-            st.sidebar.markdown(f"""
-            <div class="chat-message {message_class}">
-                <strong>{msg['role'].capitalize()}:</strong> {msg['content'][:100]}...
-                <div class="timestamp">{msg['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            # Main conversation flow starts here...
+
+# Main conversation flow starts here...
 if 'auth_code' not in st.session_state:
-    # Display an authenticate button to initiate login
     if st.button("Authenticate to use the app"):
-        # Get the authentication URL
         auth_url = get_auth_url()
-        
-        # Use st.session_state to store the auth_url
-        st.session_state.auth_url = auth_url
-        
-        # Provide a clickable link that opens in a new tab
-        st.markdown(f'[Click here to authenticate with Microsoft]({auth_url})', unsafe_allow_html=True)
+        st.query_params["auth_url"] = auth_url
+        st.rerun()
 else:
-    # The user has already authenticated, now we get the token
     headers = get_auth_headers(st.session_state['auth_code'])
     if headers:
-        # Initialize the session state for other items if not already done
         if 'messages' not in st.session_state:
             st.session_state.messages = []
             st.session_state.items_dict = {}
             st.session_state.search_results_dict = {}
             st.session_state.file_contents = {}
-
-        st.success("You are authenticated! Now you can interact with the app.")
-
-
+ 
         # Display chat history
         display_chat_history()
  
@@ -420,40 +353,6 @@ else:
                 else:
                     add_message("assistant", "I'm sorry, I couldn't find any relevant files to answer your question.")
  
-            elif prompt.lower().startswith("folder"):
-                try:
-                    folder_num = prompt.split()[1]
- 
-                    # Check if folder_num exists in items_dict
-                    if folder_num in st.session_state.items_dict:
-                        item_path, item_type = st.session_state.items_dict.get(
-                            folder_num, (None, None))
- 
-                        if item_path and item_type == 'Folder':
-                            # Download the entire folder as a zip
-                            zip_content, zip_filename = download_folder_as_zip(
-                                site_info['id'], item_path, headers)
-                            if zip_content and zip_filename:
-                                add_message(
-                                    "assistant", f"Great! I've successfully downloaded the folder '{zip_filename}' for you.")
-                                b64 = base64.b64encode(zip_content).decode()
-                                href = f'<a href="data:application/zip;base64,{b64}" download="{zip_filename}">Click here to download {zip_filename}</a>'
-                                st.markdown(href, unsafe_allow_html=True)
-                                add_message(
-                                    "assistant", "Is there anything else you'd like to do? (Yes/No)")
-                            else:
-                                add_message(
-                                    "assistant", "I'm sorry, I couldn't download the folder. It might be empty or there was an error.")
-                        else:
-                            add_message(
-                                "assistant", "The specified item is not a folder. Please check the folder number and try again.")
-                    else:
-                        add_message(
-                            "assistant", f"No folder found with the number {folder_num}. Please check the number and try again.")
-                except IndexError:
-                    add_message(
-                        "assistant", "Please specify the folder number after 'folder'. For example: 'folder 2'.")
- 
             elif prompt.isdigit() or (prompt.replace('.', '').isdigit() and prompt.count('.') == 1):
                 item_path, item_type = st.session_state.items_dict.get(
                     prompt, (None, None))
@@ -537,28 +436,18 @@ else:
                     else:
                         add_message(
                             "assistant", "I'm sorry, I couldn't retrieve the file information. Please try again.")
-    else:
-        st.error("Authentication failed. Please try again.")
-        # Reset session state in case of failure
-        del st.session_state['auth_code']
-
+ 
         # Add a button to clear the conversation
-    if st.button("Clear Conversation"):
-        st.session_state.messages = []
-        st.rerun()
+        if st.button("Clear Conversation"):
+            st.session_state.messages = []
+            st.rerun()
  
-# Extract authorization code from URL query params
-query_params = st.query_params  # Use st.query_params to access the query params
-auth_code = query_params.get("code", [None])[0]
+# In your main flow
+if 'auth_code' not in st.session_state and 'code' in st.query_params:
+    st.session_state.auth_code = st.query_params['code']
+    # Verify state parameter here if you've implemented it
+    st.rerun()
 
-# If there's an authorization code in the URL, set it in session state
-if auth_code and 'auth_code' not in st.session_state:
-    st.session_state['auth_code'] = auth_code
-    st.experimental_rerun()
- 
-# # Redirect to authentication URL
-# if 'auth_url' in st.query_params:
-#     st.markdown(
-#         f'<meta http-equiv="refresh" content="0; url={st.query_params["auth_url"]}">', unsafe_allow_html=True)
-
- 
+if 'auth_url' in st.query_params:
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={st.query_params["auth_url"]}">', unsafe_allow_html=True)
