@@ -13,33 +13,33 @@ from sklearn.metrics.pairwise import cosine_similarity
 from datetime import datetime, timedelta
 import streamlit_pagination as stp
 import zipfile
- 
+
 # Azure AD app details
 client_id = st.secrets["CLIENT_ID"]
 client_secret = st.secrets["CLIENT_SECRET"]
 tenant_id = st.secrets["TENANT_ID"]
 authority_url = f"https://login.microsoftonline.com/{tenant_id}"
 redirect_uri = st.secrets["URL"]
- 
+
 # Define the scopes required for accessing SharePoint
 scopes = ["Files.ReadWrite.All", "Sites.Read.All", "User.Read"]
- 
+
 # MSAL configuration
 app = msal.ConfidentialClientApplication(
     client_id,
     authority=authority_url,
     client_credential=client_secret
 )
- 
+
 # Streamlit UI
 st.title("📂 SharePoint File Downloader and Query Chatbot")
- 
+
 # Authentication flow
 def get_auth_url():
     auth_url = app.get_authorization_request_url(
         scopes, 
         redirect_uri=redirect_uri,
-        state=st.session_state.get("state", "")  # Add a state parameter
+        state=st.session_state.get("state", "")
     )
     st.write(f"Debug: Auth URL is {auth_url}")  # Debug logging
     return auth_url
@@ -53,7 +53,7 @@ def get_token_from_code(auth_code):
     if "error" in result:
         st.error(f"Error in token acquisition: {result.get('error_description', 'Unknown error')}")
     return result
- 
+
 # Cache the authentication headers
 @st.cache_resource
 def get_auth_headers(auth_code=None):
@@ -212,13 +212,17 @@ def add_message(role, content):
 
 # Main conversation flow starts here...
 if 'auth_code' not in st.session_state:
-    if st.button("Authenticate to use the app"):
+    if 'code' in st.query_params:
+        st.session_state.auth_code = st.query_params['code']
+        st.rerun()
+    elif st.button("Authenticate to use the app"):
         auth_url = get_auth_url()
         st.query_params["auth_url"] = auth_url
         st.rerun()
 else:
     headers = get_auth_headers(st.session_state['auth_code'])
     if headers:
+        st.success("Authentication successful!")
         if 'messages' not in st.session_state:
             st.session_state.messages = []
             st.session_state.items_dict = {}
@@ -226,7 +230,7 @@ else:
             st.session_state.file_contents = {}
  
         # Display chat history
-        display_chat_history()
+        # display_chat_history()
  
         if not st.session_state.messages:
             add_message("assistant", "Hello! I'm your SharePoint File Downloader and Query Assistant. How can I help you today?")
@@ -442,12 +446,12 @@ else:
             st.session_state.messages = []
             st.rerun()
  
-# In your main flow
+# To handle the redirection and capture the auth code
 if 'auth_code' not in st.session_state and 'code' in st.query_params:
     st.session_state.auth_code = st.query_params['code']
-    # Verify state parameter here if you've implemented it
     st.rerun()
-
+ 
 if 'auth_url' in st.query_params:
     st.markdown(
         f'<meta http-equiv="refresh" content="0; url={st.query_params["auth_url"]}">', unsafe_allow_html=True)
+ 
