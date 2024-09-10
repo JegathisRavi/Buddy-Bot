@@ -15,9 +15,9 @@ import streamlit_pagination as stp
 import zipfile
  
 # Azure AD app details
-client_id = st.secrets["azure_ad"]["CLIENT_ID"]
-client_secret = st.secrets["azure_ad"]["CLIENT_SECRET"]
-tenant_id = st.secrets["azure_ad"]["TENANT_ID"]
+client_id = st.secrets["CLIENT_ID"]
+client_secret = st.secrets["CLIENT_SECRET"]
+tenant_id = st.secrets["TENANT_ID"]
 authority_url = f"https://login.microsoftonline.com/{tenant_id}"
 redirect_uri = st.secrets["URL"]
  
